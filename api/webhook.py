@@ -1,9 +1,10 @@
-from flask import Flask, request
 import telebot
+import os
 import aiohttp
 import asyncio
 import re
-import os
+from telebot import types
+from telebot.wsgi_server import WSGIApp
 
 TOKEN = os.environ.get("8012566836:AAHIdMZs_cZYDtgm_3Ncs1rU6NQfWov6JHI")
 SOUNDCLOUD_CLIENT_ID = os.environ.get("KKzJxmw11tYpCs6T24P4uUYhqmjalG6M")
@@ -11,8 +12,8 @@ TIKTOK_API = "https://tikwm.com/api/"
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 
 bot = telebot.TeleBot(TOKEN, threaded=False)
-app = Flask(__name__)
 
+# ===== SoundCloud functions =====
 async def search_soundcloud(session, query):
     url = f"https://api-v2.soundcloud.com/search/tracks?q={query}&client_id={SOUNDCLOUD_CLIENT_ID}&limit=1"
     try:
@@ -39,10 +40,12 @@ async def get_stream_url(session, track):
         print(f"[Stream URL Error] {e}")
         return None
 
+# ===== TikTok function =====
 def extract_tiktok_url(text: str):
-    matches = re.findall(r'(https?://[^ ]*tiktok\.com[^\s]*)', text)
+    matches = re.findall(r'(https?://[^ ]*tiktok\\.com[^\\s]*)', text)
     return matches[0] if matches else None
 
+# ===== Handlers =====
 @bot.message_handler(commands=["scl"])
 def handle_scl(message):
     query = message.text.replace("/scl", "").strip()
@@ -94,12 +97,5 @@ async def process_tiktok(message, url):
             print(f"[TikTok Error] {e}")
             bot.send_message(message.chat.id, "⚠️ Lỗi khi xử lý video TikTok.")
 
-@app.route("/webhook", methods=["POST"])
-def webhook():
-    if request.headers.get('content-type') == 'application/json':
-        json_string = request.get_data().decode('utf-8')
-        update = telebot.types.Update.de_json(json_string)
-        bot.process_new_updates([update])
-        return "!", 200
-    else:
-        return "Invalid", 403
+# ✅ Đây là WSGI app dùng cho Vercel
+app = WSGIApp(bot)
