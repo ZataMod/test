@@ -1,8 +1,9 @@
 const axios = require("axios");
 
 const TOKEN = process.env.BOT_TOKEN;
-const TIKTOK_API = "https://tikwm.com/api/";
+const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY;
 const TELEGRAM_API = `https://api.telegram.org/bot${TOKEN}`;
+const TIKTOK_API = "https://tikwm.com/api/";
 
 function extractTikTokUrl(text) {
   const match = text.match(/https?:\/\/[^\s]*tiktok\.com[^\s]*/);
@@ -19,32 +20,41 @@ module.exports = async (req, res) => {
   const text = msg.text.trim();
 
   try {
-    // Lệnh /yt: tìm bài hát YouTube
+    // ✅ /yt: search YouTube and send iframe
     if (text.startsWith("/yt")) {
       const query = text.replace("/yt", "").trim();
       if (!query) {
-        await sendMessage(chatId, "🔎 Vui lòng nhập tên bài hát sau lệnh /yt");
+        await sendMessage(chatId, "🔎 Vui lòng nhập từ khóa sau lệnh /yt");
         return res.status(200).send("OK");
       }
 
-      await sendMessage(chatId, `🎵 Đang tìm: ${query}...`);
+      await sendMessage(chatId, `🔍 Đang tìm kiếm: ${query}...`);
 
-      // Gọi API YouTube → lấy link MP3
-      const api = `https://test-lovat-two-19.vercel.app?query=${encodeURIComponent(query)}`;
-      const ytRes = await axios.get(api);
-      const video = ytRes.data?.videos?.[0];
+      // Gọi YouTube API
+      const ytRes = await axios.get("https://www.googleapis.com/youtube/v3/search", {
+        params: {
+          key: YOUTUBE_API_KEY,
+          q: query,
+          part: "snippet",
+          maxResults: 1,
+          type: "video"
+        }
+      });
 
+      const video = ytRes.data.items?.[0];
       if (!video) {
-        await sendMessage(chatId, "❌ Không tìm thấy bài hát.");
+        await sendMessage(chatId, "❌ Không tìm thấy video YouTube.");
         return res.status(200).send("OK");
       }
 
-      const audioUrl = `https://youtube-mp3-download.vercel.app/api/audio/${video.videoId}`;
+      const videoId = video.id.videoId;
+      const title = video.snippet.title;
+      const embedHtml = `<a href="https://www.youtube.com/watch?v=${videoId}">&#8205;</a><b>${title}</b>\n▶️ https://www.youtube.com/watch?v=${videoId}`;
 
-      await sendAudio(chatId, audioUrl, video.title, video.channelTitle);
+      await sendHTML(chatId, embedHtml);
     }
 
-    // TikTok link
+    // ✅ TikTok video downloader
     else if (text.includes("tiktok.com")) {
       const tiktokUrl = extractTikTokUrl(text);
       if (!tiktokUrl) return res.status(200).send("No TikTok URL");
@@ -71,15 +81,18 @@ module.exports = async (req, res) => {
 };
 
 async function sendMessage(chatId, text) {
-  return axios.post(`${TELEGRAM_API}/sendMessage`, { chat_id: chatId, text });
+  return axios.post(`${TELEGRAM_API}/sendMessage`, {
+    chat_id: chatId,
+    text,
+  });
 }
 
-async function sendAudio(chatId, audioUrl, title, performer) {
-  return axios.post(`${TELEGRAM_API}/sendAudio`, {
+async function sendHTML(chatId, html) {
+  return axios.post(`${TELEGRAM_API}/sendMessage`, {
     chat_id: chatId,
-    audio: audioUrl,
-    title,
-    performer,
+    text: html,
+    parse_mode: "HTML",
+    disable_web_page_preview: false
   });
 }
 
@@ -89,4 +102,4 @@ async function sendVideo(chatId, videoUrl, caption) {
     video: videoUrl,
     caption,
   });
-}
+    }
