@@ -1,96 +1,97 @@
-import axios from "axios";
-import dotenv from "dotenv";
-dotenv.config();
+const express = require("express");
+const axios = require("axios");
+const TelegramBot = require("node-telegram-bot-api");
 
-const TELEGRAM_API = `https://api.telegram.org/bot${process.env.BOT_TOKEN}`;
-const YT_API = "https://www.googleapis.com/youtube/v3/search";
+const BOT_TOKEN = process.env.BOT_TOKEN;
+const RAPID_API_KEY = process.env.RAPID_API_KEY;
 
-export default async (req, res) => {
-  if (req.method !== "POST") return res.status(405).end();
+const bot = new TelegramBot(BOT_TOKEN, { polling: true });
+const app = express();
 
-  const body = req.body;
-  const msg = body.message;
-  if (!msg || !msg.text) return res.status(200).send("No message");
-
+bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text;
 
-  // 1️⃣ /yt <tên bài hát>
+  if (!text) return;
+
+  // 🎵 /yt tên bài hát
   if (text.startsWith("/yt ")) {
-    const query = text.slice(4).trim();
+    const query = text.slice(4);
+    await bot.sendMessage(chatId, `🔍 Đang tìm bài hát: ${query}...`);
+
     try {
-      const ytRes = await axios.get(YT_API, {
-        params: {
-          part: "snippet",
-          q: query + " music",
-          type: "video",
-          key: process.env.YOUTUBE_API_KEY,
-          maxResults: 1
+      const options = {
+        method: "GET",
+        url: "https://youtube-mp36.p.rapidapi.com/dl",
+        params: { id: "" },
+        headers: {
+          "X-RapidAPI-Key": RAPID_API_KEY,
+          "X-RapidAPI-Host": "youtube-mp36.p.rapidapi.com",
+        },
+      };
+
+      // Tìm video ID đầu tiên từ YouTube
+      const searchRes = await axios.get(
+        "https://www.googleapis.com/youtube/v3/search",
+        {
+          params: {
+            part: "snippet",
+            q: query,
+            maxResults: 1,
+            key: process.env.YT_API_KEY,
+          },
         }
-      });
+      );
 
-      const items = ytRes.data.items;
-      if (items && items.length > 0) {
-        const videoId = items[0].id.videoId;
-        const title = items[0].snippet.title;
-        const url = `https://www.youtube.com/watch?v=${videoId}`;
-
-        await axios.post(`${TELEGRAM_API}/sendMessage`, {
-          chat_id: chatId,
-          text: `🎵 ${title}\n🔗 ${url}`
-        });
-      } else {
-        await axios.post(`${TELEGRAM_API}/sendMessage`, {
-          chat_id: chatId,
-          text: "❌ Không tìm thấy bài hát."
-        });
+      const videoId = searchRes.data.items[0]?.id?.videoId;
+      if (!videoId) {
+        return bot.sendMessage(chatId, "❌ Không tìm thấy video.");
       }
-    } catch (e) {
-      console.error(e);
-      await axios.post(`${TELEGRAM_API}/sendMessage`, {
-        chat_id: chatId,
-        text: "⚠️ Lỗi khi tìm kiếm bài hát."
+
+      // Lấy link MP3
+      options.params.id = videoId;
+      const res = await axios.request(options);
+      const mp3 = res.data;
+
+      await bot.sendAudio(chatId, mp3.link, {
+        title: mp3.title,
+        performer: "YouTube",
       });
+    } catch (err) {
+      console.error(err.message);
+      bot.sendMessage(chatId, "❌ Lỗi khi tải MP3.");
     }
-    return res.status(200).end();
   }
 
-  // 2️⃣ Tự động phát hiện link TikTok
-  const tiktokRegex = /(https?:\/\/[^\s]*tiktok\.com[^\s]*)/;
+  // 🎵 Tự động phát hiện link TikTok
+  const tiktokRegex = /(https?:\/\/(?:www\.)?tiktok\.com\/[^\s]*)/i;
   const match = text.match(tiktokRegex);
   if (match) {
     const url = match[1];
+    await bot.sendMessage(chatId, `🔍 Đang xử lý TikTok: ${url}`);
+
     try {
-      const resTik = await axios.get(`https://tikwm.com/api/?url=${encodeURIComponent(url)}`);
-      const data = resTik.data.data;
-
-      if (data && data.play) {
-        await axios.post(`${TELEGRAM_API}/sendVideo`, {
-          chat_id: chatId,
-          video: data.play,
-          caption: data.title || "🎬 Video TikTok"
-        });
-      } else {
-        await axios.post(`${TELEGRAM_API}/sendMessage`, {
-          chat_id: chatId,
-          text: "❌ Không lấy được video TikTok."
-        });
-      }
-    } catch (e) {
-      console.error(e);
-      await axios.post(`${TELEGRAM_API}/sendMessage`, {
-        chat_id: chatId,
-        text: "⚠️ Lỗi khi tải TikTok."
+      const res = await axios.get("https://tiktok-downloader-download-videos-without-watermark.p.rapidapi.com/vid/index", {
+        params: { url },
+        headers: {
+          "X-RapidAPI-Key": RAPID_API_KEY,
+          "X-RapidAPI-Host": "tiktok-downloader-download-videos-without-watermark.p.rapidapi.com"
+        }
       });
+
+      const audio = res.data.music;
+      await bot.sendAudio(chatId, audio, {
+        title: res.data.desc || "TikTok Audio",
+        performer: "TikTok"
+      });
+    } catch (e) {
+      console.error(e.message);
+      bot.sendMessage(chatId, "❌ Lỗi khi tải audio TikTok.");
     }
-    return res.status(200).end();
   }
+});
 
-  // Trường hợp không khớp gì
-  await axios.post(`${TELEGRAM_API}/sendMessage`, {
-    chat_id: chatId,
-    text: "❓ Gõ /yt <tên bài hát> hoặc gửi link TikTok để tải video."
-  });
+app.get("/", (req, res) => res.send("Bot is running!"));
 
-  res.status(200).end();
-};
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log("Server running on port", PORT));
