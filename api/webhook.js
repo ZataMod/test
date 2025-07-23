@@ -30,7 +30,7 @@ module.exports = async (req, res) => {
       await sendMessage(chatId, `🎵 Đang tìm: ${query}...`);
 
       // Gọi API YouTube → lấy link MP3
-      const api = `https://test-lovat-two-19.vercel.app/api/search?query=${encodeURIComponent(query)}`;
+      const api = `https://test-lovat-two-19.vercel.app?query=${encodeURIComponent(query)}`;
       const ytRes = await axios.get(api);
       const video = ytRes.data?.videos?.[0];
 
