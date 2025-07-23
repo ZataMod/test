@@ -1,7 +1,6 @@
 const axios = require("axios");
 
 const TOKEN = process.env.BOT_TOKEN;
-const SOUNDCLOUD_CLIENT_ID = process.env.SOUNDCLOUD_CLIENT_ID;
 const TIKTOK_API = "https://tikwm.com/api/";
 const TELEGRAM_API = `https://api.telegram.org/bot${TOKEN}`;
 
@@ -20,34 +19,29 @@ module.exports = async (req, res) => {
   const text = msg.text.trim();
 
   try {
-    // Command: /scl
-    if (text.startsWith("/scl")) {
-      const query = text.replace("/scl", "").trim();
+    // Lệnh /yt: tìm bài hát YouTube
+    if (text.startsWith("/yt")) {
+      const query = text.replace("/yt", "").trim();
       if (!query) {
-        await sendMessage(chatId, "🔎 Vui lòng nhập tên bài hát sau lệnh /scl");
+        await sendMessage(chatId, "🔎 Vui lòng nhập tên bài hát sau lệnh /yt");
         return res.status(200).send("OK");
       }
 
       await sendMessage(chatId, `🎵 Đang tìm: ${query}...`);
-      const searchUrl = `https://api-v2.soundcloud.com/search/tracks?q=${encodeURIComponent(query)}&client_id=${SOUNDCLOUD_CLIENT_ID}&limit=1`;
-      const trackRes = await axios.get(searchUrl);
-      const track = trackRes.data.collection?.[0];
 
-      if (!track) {
+      // Gọi API YouTube → lấy link MP3
+      const api = `https://test-lovat-two-19.vercel.app/api/search?query=${encodeURIComponent(query)}`;
+      const ytRes = await axios.get(api);
+      const video = ytRes.data?.videos?.[0];
+
+      if (!video) {
         await sendMessage(chatId, "❌ Không tìm thấy bài hát.");
         return res.status(200).send("OK");
       }
 
-      const streamObj = track.media.transcodings.find(t => t.format.protocol === "progressive");
-      if (!streamObj) {
-        await sendMessage(chatId, "⚠️ Bài hát này không có định dạng hỗ trợ.");
-        return res.status(200).send("OK");
-      }
+      const audioUrl = `https://youtube-mp3-download.vercel.app/api/audio/${video.videoId}`;
 
-      const streamRes = await axios.get(`${streamObj.url}?client_id=${SOUNDCLOUD_CLIENT_ID}`);
-      const streamUrl = streamRes.data.url;
-
-      await sendAudio(chatId, streamUrl, track.title, track.user.username);
+      await sendAudio(chatId, audioUrl, video.title, video.channelTitle);
     }
 
     // TikTok link
@@ -95,4 +89,4 @@ async function sendVideo(chatId, videoUrl, caption) {
     video: videoUrl,
     caption,
   });
-  }
+}
