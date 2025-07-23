@@ -1,86 +1,96 @@
-const axios = require("axios");
+import axios from "axios";
+import dotenv from "dotenv";
+dotenv.config();
 
-const TELEGRAM_TOKEN = process.env.BOT_TOKEN;
-const YOUTUBE_API_KEY = process.env.YT_API_KEY;
-const TELEGRAM_API = `https://api.telegram.org/bot${TELEGRAM_TOKEN}`;
-const TIKTOK_API = "https://tikwm.com/api/";
+const TELEGRAM_API = `https://api.telegram.org/bot${process.env.BOT_TOKEN}`;
+const YT_API = "https://www.googleapis.com/youtube/v3/search";
 
-function extractTikTokUrl(text) {
-  const match = text.match(/https?:\/\/[^\s]*tiktok\.com[^\s]*/);
-  return match ? match[0] : null;
-}
+export default async (req, res) => {
+  if (req.method !== "POST") return res.status(405).end();
 
-async function handleTelegramUpdate(update) {
-  const chatId = update.message.chat.id;
-  const text = update.message.text;
+  const body = req.body;
+  const msg = body.message;
+  if (!msg || !msg.text) return res.status(200).send("No message");
 
-  // 👉 TikTok link detection anywhere in the message
-  const tiktokUrl = extractTikTokUrl(text);
-  if (tiktokUrl) {
-    try {
-      const response = await axios.get(TIKTOK_API, {
-        params: { url: tiktokUrl }
-      });
-      const videoUrl = response.data.data.play;
-      await axios.post(`${TELEGRAM_API}/sendVideo`, {
-        chat_id: chatId,
-        video: videoUrl,
-        caption: "✅ Tải TikTok không logo thành công!"
-      });
-    } catch (err) {
-      await axios.post(`${TELEGRAM_API}/sendMessage`, {
-        chat_id: chatId,
-        text: "❌ Không thể tải video TikTok."
-      });
-    }
-    return;
-  }
+  const chatId = msg.chat.id;
+  const text = msg.text;
 
-  // 👉 /yt tên bài hát => tìm YouTube
+  // 1️⃣ /yt <tên bài hát>
   if (text.startsWith("/yt ")) {
-    const query = text.replace("/yt ", "").trim();
+    const query = text.slice(4).trim();
     try {
-      const ytResponse = await axios.get("https://www.googleapis.com/youtube/v3/search", {
+      const ytRes = await axios.get(YT_API, {
         params: {
           part: "snippet",
-          q: `${query} music`,
+          q: query + " music",
           type: "video",
-          key: YOUTUBE_API_KEY,
+          key: process.env.YOUTUBE_API_KEY,
           maxResults: 1
         }
       });
 
-      const video = ytResponse.data.items[0];
-      const videoId = video.id.videoId;
-      const title = video.snippet.title;
-      const url = `https://www.youtube.com/watch?v=${videoId}`;
+      const items = ytRes.data.items;
+      if (items && items.length > 0) {
+        const videoId = items[0].id.videoId;
+        const title = items[0].snippet.title;
+        const url = `https://www.youtube.com/watch?v=${videoId}`;
 
+        await axios.post(`${TELEGRAM_API}/sendMessage`, {
+          chat_id: chatId,
+          text: `🎵 ${title}\n🔗 ${url}`
+        });
+      } else {
+        await axios.post(`${TELEGRAM_API}/sendMessage`, {
+          chat_id: chatId,
+          text: "❌ Không tìm thấy bài hát."
+        });
+      }
+    } catch (e) {
+      console.error(e);
       await axios.post(`${TELEGRAM_API}/sendMessage`, {
         chat_id: chatId,
-        text: `🎵 *${title}*\n🔗 ${url}`,
-        parse_mode: "Markdown"
-      });
-    } catch (err) {
-      await axios.post(`${TELEGRAM_API}/sendMessage`, {
-        chat_id: chatId,
-        text: "❌ Không tìm thấy bài hát."
+        text: "⚠️ Lỗi khi tìm kiếm bài hát."
       });
     }
-    return;
+    return res.status(200).end();
   }
 
-  // 👉 Gửi hướng dẫn nếu không khớp lệnh nào
+  // 2️⃣ Tự động phát hiện link TikTok
+  const tiktokRegex = /(https?:\/\/[^\s]*tiktok\.com[^\s]*)/;
+  const match = text.match(tiktokRegex);
+  if (match) {
+    const url = match[1];
+    try {
+      const resTik = await axios.get(`https://tikwm.com/api/?url=${encodeURIComponent(url)}`);
+      const data = resTik.data.data;
+
+      if (data && data.play) {
+        await axios.post(`${TELEGRAM_API}/sendVideo`, {
+          chat_id: chatId,
+          video: data.play,
+          caption: data.title || "🎬 Video TikTok"
+        });
+      } else {
+        await axios.post(`${TELEGRAM_API}/sendMessage`, {
+          chat_id: chatId,
+          text: "❌ Không lấy được video TikTok."
+        });
+      }
+    } catch (e) {
+      console.error(e);
+      await axios.post(`${TELEGRAM_API}/sendMessage`, {
+        chat_id: chatId,
+        text: "⚠️ Lỗi khi tải TikTok."
+      });
+    }
+    return res.status(200).end();
+  }
+
+  // Trường hợp không khớp gì
   await axios.post(`${TELEGRAM_API}/sendMessage`, {
     chat_id: chatId,
-    text: `🔹 Gửi link TikTok bất kỳ để tải video.\n🔹 Gõ /yt <tên bài hát> để tìm nhạc YouTube.`
+    text: "❓ Gõ /yt <tên bài hát> hoặc gửi link TikTok để tải video."
   });
-}
 
-export default async function handler(req, res) {
-  if (req.method === "POST") {
-    await handleTelegramUpdate(req.body);
-    return res.status(200).end("OK");
-  } else {
-    return res.status(405).end("Method Not Allowed");
-  }
-}
+  res.status(200).end();
+};
