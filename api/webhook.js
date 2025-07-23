@@ -1,6 +1,6 @@
 import express from 'express';
 import axios from 'axios';
-const TelegramBot = require("node-telegram-bot-api");
+import TelegramBot from 'node-telegram-bot-api';
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const RAPID_API_KEY = process.env.RAPID_API_KEY;
