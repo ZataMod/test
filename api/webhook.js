@@ -18,10 +18,46 @@ module.exports = async (req, res) => {
 
   const chatId = msg.chat.id;
   const text = msg.text.trim();
-  const fromId = msg.from.id;
+  const senderId = msg.from.id;
 
   try {
-    // Command: /scl
+    // ✅ Command: /all — tag all members (chỉ admin)
+    if (text === "/all") {
+      const isAdmin = await checkAdmin(chatId, senderId);
+      if (!isAdmin) {
+        await sendMessage(chatId, "❌ Bạn không có quyền dùng lệnh này.");
+        return res.status(200).send("OK");
+      }
+
+      // Get chat members (admin list as demo — you can expand later)
+      const resp = await axios.get(`${TELEGRAM_API}/getChatAdministrators`, {
+        params: { chat_id: chatId },
+      });
+
+      const members = resp.data.result;
+
+      if (!members || members.length === 0) {
+        await sendMessage(chatId, "❌ Không thể lấy danh sách thành viên.");
+        return res.status(200).send("OK");
+      }
+
+      // Gắn thẻ từng thành viên có tên
+      const mentions = members.map((m) => {
+        const user = m.user;
+        if (user.username) return `||@${user.username}||`;
+        return `||[${user.first_name}](tg://user?id=${user.id})||`;
+      });
+
+      const chunkSize = 30;
+      for (let i = 0; i < mentions.length; i += chunkSize) {
+        const chunk = mentions.slice(i, i + chunkSize).join(" ");
+        await sendMessage(chatId, chunk, "MarkdownV2");
+      }
+
+      return res.status(200).send("OK");
+    }
+
+    // 🔍 Command: /scl
     if (text.startsWith("/scl")) {
       const query = text.replace("/scl", "").trim();
       if (!query) {
@@ -51,7 +87,7 @@ module.exports = async (req, res) => {
       await sendAudio(chatId, streamUrl, track.title, track.user.username);
     }
 
-    // TikTok link
+    // 📥 TikTok link
     else if (text.includes("tiktok.com")) {
       const tiktokUrl = extractTikTokUrl(text);
       if (!tiktokUrl) return res.status(200).send("No TikTok URL");
@@ -69,66 +105,52 @@ module.exports = async (req, res) => {
       }
     }
 
-    // Command: /all
-    else if (text === "/all" || text.startsWith("/all ")) {
-      const adminList = await axios.get(`${TELEGRAM_API}/getChatAdministrators`, {
-        params: { chat_id: chatId }
-      });
-
-      const isAdmin = adminList.data.result.some(member => member.user.id === fromId);
-      if (!isAdmin) {
-        await sendMessage(chatId, "❌ Lệnh này chỉ dành cho admin.");
-        return res.status(200).send("OK");
-      }
-
-      // Tạo danh sách tag từ các admin (Telegram không cho lấy all member)
-      const mentions = adminList.data.result
-        .map(admin => {
-          const name = admin.user.first_name || "Người dùng";
-          return `[${name}](tg://user?id=${admin.user.id})`;
-        })
-        .join(" ");
-
-      const invisibleChar = "\u2063"; // ZERO WIDTH NON-JOINER để ẩn
-
-      await axios.post(`${TELEGRAM_API}/sendMessage`, {
-        chat_id: chatId,
-        text: invisibleChar + mentions,
-        parse_mode: "Markdown",
-        disable_notification: true
-      });
-
-      return res.status(200).send("OK");
-    }
-
     res.status(200).send("OK");
   } catch (err) {
-    console.error("❌ Error:", err.message || err.response?.data);
+    console.error("❌ Error:", err.message);
     await sendMessage(chatId, "⚠️ Đã xảy ra lỗi khi xử lý yêu cầu.");
     res.status(200).send("ERR");
   }
 };
 
-async function sendMessage(chatId, text) {
+// 📤 Send plain message
+async function sendMessage(chatId, text, mode = "HTML") {
   return axios.post(`${TELEGRAM_API}/sendMessage`, {
     chat_id: chatId,
-    text
+    text,
+    parse_mode: mode,
+    disable_notification: true,
   });
 }
 
+// 🎵 Send audio file
 async function sendAudio(chatId, audioUrl, title, performer) {
   return axios.post(`${TELEGRAM_API}/sendAudio`, {
     chat_id: chatId,
     audio: audioUrl,
     title,
-    performer
+    performer,
   });
 }
 
+// 📹 Send video file
 async function sendVideo(chatId, videoUrl, caption) {
   return axios.post(`${TELEGRAM_API}/sendVideo`, {
     chat_id: chatId,
     video: videoUrl,
-    caption
+    caption,
   });
 }
+
+// 🔐 Check if sender is admin
+async function checkAdmin(chatId, userId) {
+  try {
+    const res = await axios.get(`${TELEGRAM_API}/getChatMember`, {
+      params: { chat_id: chatId, user_id: userId },
+    });
+    const status = res.data.result.status;
+    return status === "administrator" || status === "creator";
+  } catch (e) {
+    return false;
+  }
+  }
