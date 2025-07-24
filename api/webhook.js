@@ -75,7 +75,12 @@ module.exports = async (req, res) => {
       const songUrl = song.url;
 
       // Lấy lời bài hát từ trang web
-      const htmlRes = await axios.get(songUrl);
+      const htmlRes = await axios.get(songUrl, {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115 Safari/537.36"
+        }
+      });
       const html = htmlRes.data;
       const lyricsMatch = html.match(/<div[^>]+data-lyrics-container[^>]*>([\s\S]+?)<\/div><\/div>/);
 
