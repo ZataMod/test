@@ -1,63 +1,134 @@
-const axios = require("axios");        
+const axios = require("axios");
 
 const TOKEN = process.env.BOT_TOKEN;
+const SOUNDCLOUD_CLIENT_ID = process.env.SOUNDCLOUD_CLIENT_ID;
+const TIKTOK_API = "https://tikwm.com/api/";
 const TELEGRAM_API = `https://api.telegram.org/bot${TOKEN}`;
 
-export default async function handler(req, res) {
-  const body = req.body;
+function extractTikTokUrl(text) {
+  const match = text.match(/https?:\/\/[^\s]*tiktok\.com[^\s]*/);
+  return match ? match[0] : null;
+}
 
-  if (!body?.message || !body.message.text) {
-    return res.status(200).send('No message');
-  }
+module.exports = async (req, res) => {
+  if (req.method !== "POST") return res.status(200).send("🤖 Bot is running");
 
-  const message = body.message;
-  const chat_id = message.chat.id;
-  const from_id = message.from.id;
-  const text = message.text;
+  const msg = req.body.message || req.body.edited_message;
+  if (!msg || !msg.text) return res.status(200).send("No message");
 
-  // /all command
-  if (text === '/all') {
-    try {
-      // Kiểm tra user là admin
-      const adminsRes = await axios.get(`${TELEGRAM_API}/getChatAdministrators`, {
-        params: { chat_id }
-      });
+  const chatId = msg.chat.id;
+  const text = msg.text.trim();
+  const fromId = msg.from.id;
 
-      const isAdmin = adminsRes.data.result.some((admin) => admin.user.id === from_id);
-
-      if (!isAdmin) {
-        await axios.post(`${TELEGRAM_API}/sendMessage`, {
-          chat_id,
-          text: "❌ Bạn không có quyền sử dụng lệnh này.",
-        });
-        return res.status(200).send("Not admin");
+  try {
+    // Command: /scl
+    if (text.startsWith("/scl")) {
+      const query = text.replace("/scl", "").trim();
+      if (!query) {
+        await sendMessage(chatId, "🔎 Vui lòng nhập tên bài hát sau lệnh /scl");
+        return res.status(200).send("OK");
       }
 
-      // Lấy danh sách member (số lượng hạn chế trên Telegram Bot API — workaround là dùng mention cứng)
-      const members = adminsRes.data.result.map((admin) => {
-        const name = admin.user.username
-          ? `@${admin.user.username}`
-          : `[${admin.user.first_name}](tg://user?id=${admin.user.id})`;
-        return name;
-      });
+      await sendMessage(chatId, `🎵 Đang tìm: ${query}...`);
+      const searchUrl = `https://api-v2.soundcloud.com/search/tracks?q=${encodeURIComponent(query)}&client_id=${SOUNDCLOUD_CLIENT_ID}&limit=1`;
+      const trackRes = await axios.get(searchUrl);
+      const track = trackRes.data.collection?.[0];
 
-      // Ghép nội dung tag ẩn
-      const invisibleChar = '\u2063'; // Zero-width non-joiner
-      const mentionText = members.join(` ${invisibleChar} `);
+      if (!track) {
+        await sendMessage(chatId, "❌ Không tìm thấy bài hát.");
+        return res.status(200).send("OK");
+      }
 
-      // Gửi tin nhắn tag all với nội dung ẩn
-      await axios.post(`${TELEGRAM_API}/sendMessage`, {
-        chat_id,
-        text: mentionText || "Không có thành viên để tag",
-        parse_mode: "Markdown"
-      });
+      const streamObj = track.media.transcodings.find(t => t.format.protocol === "progressive");
+      if (!streamObj) {
+        await sendMessage(chatId, "⚠️ Bài hát này không có định dạng hỗ trợ.");
+        return res.status(200).send("OK");
+      }
 
-      return res.status(200).send("Done");
-    } catch (err) {
-      console.error(err.response?.data || err.message);
-      return res.status(500).send("Error");
+      const streamRes = await axios.get(`${streamObj.url}?client_id=${SOUNDCLOUD_CLIENT_ID}`);
+      const streamUrl = streamRes.data.url;
+
+      await sendAudio(chatId, streamUrl, track.title, track.user.username);
     }
-  }
 
-  return res.status(200).send("No command");
+    // TikTok link
+    else if (text.includes("tiktok.com")) {
+      const tiktokUrl = extractTikTokUrl(text);
+      if (!tiktokUrl) return res.status(200).send("No TikTok URL");
+
+      await sendMessage(chatId, "📥 Đang xử lý video TikTok...");
+
+      const resTikTok = await axios.get(TIKTOK_API, { params: { url: tiktokUrl } });
+      const data = resTikTok.data?.data;
+      const videoUrl = data?.play;
+
+      if (videoUrl) {
+        await sendVideo(chatId, videoUrl, data.title || "Video từ TikTok");
+      } else {
+        await sendMessage(chatId, "❌ Không thể tải video TikTok.");
+      }
+    }
+
+    // Command: /all
+    else if (text === "/all" || text.startsWith("/all ")) {
+      const adminList = await axios.get(`${TELEGRAM_API}/getChatAdministrators`, {
+        params: { chat_id: chatId }
+      });
+
+      const isAdmin = adminList.data.result.some(member => member.user.id === fromId);
+      if (!isAdmin) {
+        await sendMessage(chatId, "❌ Lệnh này chỉ dành cho admin.");
+        return res.status(200).send("OK");
+      }
+
+      // Tạo danh sách tag từ các admin (Telegram không cho lấy all member)
+      const mentions = adminList.data.result
+        .map(admin => {
+          const name = admin.user.first_name || "Người dùng";
+          return `[${name}](tg://user?id=${admin.user.id})`;
+        })
+        .join(" ");
+
+      const invisibleChar = "\u2063"; // ZERO WIDTH NON-JOINER để ẩn
+
+      await axios.post(`${TELEGRAM_API}/sendMessage`, {
+        chat_id: chatId,
+        text: invisibleChar + "\n" + mentions,
+        parse_mode: "Markdown",
+        disable_notification: true
+      });
+
+      return res.status(200).send("OK");
+    }
+
+    res.status(200).send("OK");
+  } catch (err) {
+    console.error("❌ Error:", err.message || err.response?.data);
+    await sendMessage(chatId, "⚠️ Đã xảy ra lỗi khi xử lý yêu cầu.");
+    res.status(200).send("ERR");
+  }
+};
+
+async function sendMessage(chatId, text) {
+  return axios.post(`${TELEGRAM_API}/sendMessage`, {
+    chat_id: chatId,
+    text
+  });
+}
+
+async function sendAudio(chatId, audioUrl, title, performer) {
+  return axios.post(`${TELEGRAM_API}/sendAudio`, {
+    chat_id: chatId,
+    audio: audioUrl,
+    title,
+    performer
+  });
+}
+
+async function sendVideo(chatId, videoUrl, caption) {
+  return axios.post(`${TELEGRAM_API}/sendVideo`, {
+    chat_id: chatId,
+    video: videoUrl,
+    caption
+  });
 }
