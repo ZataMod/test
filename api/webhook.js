@@ -93,7 +93,7 @@ module.exports = async (req, res) => {
 
       await axios.post(`${TELEGRAM_API}/sendMessage`, {
         chat_id: chatId,
-        text: invisibleChar + "\n" + mentions,
+        text: invisibleChar + mentions,
         parse_mode: "Markdown",
         disable_notification: true
       });
