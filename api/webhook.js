@@ -131,7 +131,6 @@ export default async function handler(req, res) {
         return res.status(200).send("OK");
       }
 
-      await sendMessage(chatId, "⏳ Đang suy nghĩ...");
       const reply = await askAI(prompt);
       await sendMessage(chatId, `🤖 *Trả lời:*\n${reply}`);
     }
