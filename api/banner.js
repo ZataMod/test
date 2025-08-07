@@ -9,8 +9,10 @@ const TELEGRAM_API = `https://api.telegram.org/bot${TOKEN}`;
  * @param {Object} message - Thông tin message từ Telegram Webhook
  */
 export async function handleNewMember(message) {
-  const newMembers = message.new_chat_members;
-  const chatId = message.chat.id;
+  const newMembers = message.new_chat_members || [];
+  const chatId = message.chat?.id;
+
+  if (!Array.isArray(newMembers) || newMembers.length === 0 || !chatId) return;
 
   for (const user of newMembers) {
     let name = user.first_name || '';
@@ -51,10 +53,14 @@ export async function handleNewMember(message) {
     });
 
     // Gửi ảnh chào mừng vào nhóm
-    await axios.post(`${TELEGRAM_API}/sendPhoto`, {
-      chat_id: chatId,
-      photo: bannerUrl,
-      caption: `🎉 Chào mừng ${name} đến với nhóm!`,
-    });
+    try {
+      await axios.post(`${TELEGRAM_API}/sendPhoto`, {
+        chat_id: chatId,
+        photo: bannerUrl,
+        caption: `🎉 Chào mừng ${name} đến với nhóm!`,
+      });
+    } catch (err) {
+      console.error('Lỗi khi gửi ảnh:', err.message);
+    }
   }
 }
