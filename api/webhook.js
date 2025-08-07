@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import axios from "axios";
+import './banner.js';
 
 // 🔐 Biến môi trường
 const TOKEN = process.env.BOT_TOKEN;
