@@ -1,7 +1,6 @@
 import OpenAI from "openai";
 import axios from "axios";
-import './banner.js';
-
+const { handleNewMember } = require("./banner");
 // 🔐 Biến môi trường
 const TOKEN = process.env.BOT_TOKEN;
 const SOUNDCLOUD_CLIENT_ID = process.env.SOUNDCLOUD_CLIENT_ID;
@@ -76,6 +75,7 @@ export default async function handler(req, res) {
   const text = msg.text.trim();
 
   try {
+    await handleNewMember (msg)
     // 🎵 SoundCloud command
     if (text.startsWith("/scl")) {
       const query = text.replace("/scl", "").trim();
