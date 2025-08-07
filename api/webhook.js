@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import axios from "axios";
-import { handleNewMember } from "./banner.js";
+import querystring from "querystring";
+
 // 🔐 Biến môi trường
 const TOKEN = process.env.BOT_TOKEN;
 const SOUNDCLOUD_CLIENT_ID = process.env.SOUNDCLOUD_CLIENT_ID;
@@ -64,18 +65,76 @@ async function askAI(question) {
   return response.choices[0].message.content;
 }
 
-// 🚀 Hàm chính
+// 👋 Gửi ảnh chào mừng thành viên mới
+async function handleNewMember(message) {
+  const newMembers = message.new_chat_members;
+  const chatId = message.chat.id;
+
+  if (!Array.isArray(newMembers)) return;
+
+  for (const user of newMembers) {
+    let name = user.first_name || "";
+    if (user.last_name) name += ` ${user.last_name}`;
+
+    // Avatar mặc định
+    let avatarUrl = "https://i.imgur.com/2WZtOD6.png";
+
+    try {
+      const profileRes = await axios.get(`${TELEGRAM_API}/getUserProfilePhotos`, {
+        params: {
+          user_id: user.id,
+          limit: 1
+        }
+      });
+
+      const photos = profileRes.data.result.photos;
+      if (photos?.[0]?.[0]) {
+        const fileId = photos[0][0].file_id;
+        const fileInfo = await axios.get(`${TELEGRAM_API}/getFile`, {
+          params: { file_id: fileId }
+        });
+        const filePath = fileInfo.data.result.file_path;
+        avatarUrl = `https://api.telegram.org/file/bot${TOKEN}/${filePath}`;
+      }
+    } catch (err) {
+      console.warn("Không lấy được avatar:", err.message);
+    }
+
+    // Gửi ảnh banner từ dịch vụ tùy chỉnh
+    const bannerUrl = `https://banner-black.vercel.app?` + querystring.stringify({
+      name,
+      avatar: avatarUrl
+    });
+
+    await axios.post(`${TELEGRAM_API}/sendPhoto`, {
+      chat_id: chatId,
+      photo: bannerUrl,
+      caption: `🎉 Chào mừng ${name} đến với nhóm!`
+    });
+  }
+}
+
+// 🚀 Hàm chính xử lý webhook
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(200).send("🤖 Bot is running");
 
   const msg = req.body.message || req.body.edited_message;
-  if (!msg || !msg.text) return res.status(200).send("No message");
+  if (!msg) return res.status(200).send("No message");
 
   const chatId = msg.chat.id;
-  const text = msg.text.trim();
 
   try {
-    // 🎵 SoundCloud command
+    // 👋 Thành viên mới
+    if (msg.new_chat_members) {
+      await handleNewMember(msg);
+      return res.status(200).send("OK");
+    }
+
+    if (!msg.text) return res.status(200).send("No text");
+
+    const text = msg.text.trim();
+
+    // 🎵 SoundCloud
     if (text.startsWith("/scl")) {
       const query = text.replace("/scl", "").trim();
       if (!query) {
@@ -105,7 +164,7 @@ export default async function handler(req, res) {
       await sendAudio(chatId, streamUrl, track.title, track.user.username);
     }
 
-    // 📹 TikTok link
+    // 📹 TikTok
     else if (text.includes("tiktok.com")) {
       const tiktokUrl = extractTikTokUrl(text);
       if (!tiktokUrl) return res.status(200).send("No TikTok URL");
@@ -123,7 +182,7 @@ export default async function handler(req, res) {
       }
     }
 
-    // 💬 Hỏi AI
+    // 💬 AI GPT-4o
     else if (text.startsWith("/ask")) {
       const prompt = text.replace("/ask", "").trim();
       if (!prompt) {
@@ -135,15 +194,11 @@ export default async function handler(req, res) {
       await sendMessage(chatId, `🤖 *Trả lời:*\n${reply}`);
     }
 
-    else if (msg.new_chat_members) {
-      await handleNewMember (msg);
-      return res.status(200).send("OK");
-    }
-
     res.status(200).send("OK");
+
   } catch (err) {
     console.error("❌ Error:", err.message);
     await sendMessage(chatId, "⚠️ Đã xảy ra lỗi khi xử lý yêu cầu.");
     res.status(200).send("ERR");
   }
-  }
+          }
