@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import axios from "axios";
-const { handleNewMember } = require("./banner");
+import { handleNewMember } from "./banner.js";
 // 🔐 Biến môi trường
 const TOKEN = process.env.BOT_TOKEN;
 const SOUNDCLOUD_CLIENT_ID = process.env.SOUNDCLOUD_CLIENT_ID;
