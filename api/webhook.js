@@ -75,7 +75,6 @@ export default async function handler(req, res) {
   const text = msg.text.trim();
 
   try {
-    await handleNewMember (msg)
     // 🎵 SoundCloud command
     if (text.startsWith("/scl")) {
       const query = text.replace("/scl", "").trim();
@@ -134,6 +133,11 @@ export default async function handler(req, res) {
 
       const reply = await askAI(prompt);
       await sendMessage(chatId, `🤖 *Trả lời:*\n${reply}`);
+    }
+
+    else if (msg.new_chat_members) {
+      await handleNewMember (msg);
+      return res.status(200).send("OK");
     }
 
     res.status(200).send("OK");
