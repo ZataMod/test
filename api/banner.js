@@ -1,14 +1,20 @@
-// banner.js
-const axios = require("axios");
+// welcomeBanner.js (ES Module)
+import axios from "axios";
 
 const TOKEN = process.env.BOT_TOKEN;
 const TELEGRAM_API = `https://api.telegram.org/bot${TOKEN}`;
 
-/**
- * Xử lý khi có thành viên mới vào nhóm
- * @param {object} msg - message từ Telegram webhook
- */
-async function handleNewMember(msg) {
+// Hàm gửi ảnh
+async function sendPhoto(chatId, photoUrl, caption) {
+  return axios.post(`${TELEGRAM_API}/sendPhoto`, {
+    chat_id: chatId,
+    photo: photoUrl,
+    caption,
+  });
+}
+
+// Hàm xử lý thành viên mới
+export async function handleNewMember(msg) {
   const newMember = msg?.new_chat_member;
   if (!newMember) return;
 
@@ -17,7 +23,7 @@ async function handleNewMember(msg) {
   const userId = newMember.id;
 
   try {
-    // Lấy ảnh đại diện người dùng
+    // Lấy ảnh đại diện Telegram
     const photos = await axios.get(`${TELEGRAM_API}/getUserProfilePhotos`, {
       params: { user_id: userId, limit: 1 },
     });
@@ -35,22 +41,10 @@ async function handleNewMember(msg) {
       avatarUrl = `https://api.telegram.org/file/bot${TOKEN}/${filePath}`;
     }
 
-    // Tạo banner
+    // Gửi banner chào mừng
     const bannerUrl = `https://banner-black.vercel.app?name=${encodeURIComponent(name)}&avatar=${encodeURIComponent(avatarUrl)}`;
-
-    // Gửi banner vào nhóm
     await sendPhoto(chatId, bannerUrl, `👋 Chào mừng ${name} đến với nhóm!`);
   } catch (err) {
-    console.error("❌ Lỗi gửi banner chào:", err.message);
+    console.error("❌ Lỗi khi gửi banner chào:", err.message);
   }
 }
-
-async function sendPhoto(chatId, photoUrl, caption) {
-  return axios.post(`${TELEGRAM_API}/sendPhoto`, {
-    chat_id: chatId,
-    photo: photoUrl,
-    caption,
-  });
-}
-
-module.exports = { handleNewMember };
