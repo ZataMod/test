@@ -41,33 +41,33 @@ async function sendVideo(chatId, videoUrl, caption) {
   });
 }
 
-// 🧠 Gọi AI Gemini 1.5 Flash
-
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const GEMINI_API_KEY = "AIzaSyDp5iz88b08xzIXbVOcS1KriWflU5TFUJg";
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
 async function askAI(prompt) {
+  const payload = {
+    contents: [
+      { parts: [{ text: prompt }] }
+    ]
+  };
+
+  const headers = {
+    "Content-Type": "application/json",
+    "x-goog-api-key": GEMINI_API_KEY
+  };
+
+  const params = { alt: "json", prettyPrint: "false" };
+
   try {
-    const payload = {
-      contents: [
-        { parts: [{ text: prompt }] }
-      ]
-    };
-
-    const headers = {
-      "Content-Type": "application/json",
-      "x-goog-api-key": GEMINI_API_KEY
-    };
-
-    const params = {
-      alt: "json",
-      prettyPrint: "false"
-    };
-
     const res = await axios.post(GEMINI_URL, payload, { headers, params });
-    return res.data.candidates[0].content.parts[0].text;
+
+    if (res.status === 200) {
+      return res.data.candidates[0].content.parts[0].text;
+    } else {
+      return "Mạng lag";
+    }
   } catch (err) {
-    console.error("Gemini API Error:", err.message);
+    console.error("Gemini API Error:", err.response?.data || err.message);
     return "⚠️ Lỗi khi gọi Gemini API.";
   }
 }
