@@ -1,13 +1,9 @@
-import ModelClient, { isUnexpected } from "@azure-rest/ai-inference";
-import { AzureKeyCredential } from "@azure/core-auth";
 import axios from "axios";
 import querystring from "querystring";
 
 // 🔐 Biến môi trường
 const TOKEN = process.env.BOT_TOKEN;
 const SOUNDCLOUD_CLIENT_ID = process.env.SOUNDCLOUD_CLIENT_ID;
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
-
 const TELEGRAM_API = `https://api.telegram.org/bot${TOKEN}`;
 const TIKTOK_API = "https://tikwm.com/api/";
 
@@ -45,35 +41,35 @@ async function sendVideo(chatId, videoUrl, caption) {
   });
 }
 
-// 🧠 Gọi AI DeepSeek V3 qua Azure
-async function askAI(question) {
-  const token = process.env["GITHUB_TOKEN"];
-  const endpoint = "https://models.github.ai/inference";
-  const model = "deepseek/DeepSeek-V3-0324";
+// 🧠 Gọi AI Gemini 1.5 Flash
 
-  const client = ModelClient(
-    endpoint,
-    new AzureKeyCredential(token),
-  );
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
-  const response = await client.path("/chat/completions").post({
-    body: {
-      messages: [
-        { role: "system", content: "You are a helpful assistant." },
-        { role: "user", content: question }
-      ],
-      temperature: 1.0,
-      top_p: 1.0,
-      max_tokens: 1000,
-      model: model
-    }
-  });
+async function askAI(prompt) {
+  try {
+    const payload = {
+      contents: [
+        { parts: [{ text: prompt }] }
+      ]
+    };
 
-  if (isUnexpected(response)) {
-    throw response.body.error;
+    const headers = {
+      "Content-Type": "application/json",
+      "x-goog-api-key": GEMINI_API_KEY
+    };
+
+    const params = {
+      alt: "json",
+      prettyPrint: "false"
+    };
+
+    const res = await axios.post(GEMINI_URL, payload, { headers, params });
+    return res.data.candidates[0].content.parts[0].text;
+  } catch (err) {
+    console.error("Gemini API Error:", err.message);
+    return "⚠️ Lỗi khi gọi Gemini API.";
   }
-
-  return response.body.choices[0].message.content;
 }
 
 // 👋 Gửi ảnh chào mừng thành viên mới
