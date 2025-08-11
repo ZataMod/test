@@ -44,7 +44,7 @@ async function sendVideo(chatId, videoUrl, caption) {
   });
 }
 
-// 🧠 Gọi OpenAI GPT-4o
+// 🧠 Gọi OpenAI gpt-5-nano
 async function askAI(question) {
   const client = new OpenAI({
     baseURL: "https://models.github.ai/inference",
@@ -56,7 +56,7 @@ async function askAI(question) {
       { role: "system", content: "" },
       { role: "user", content: question }
     ],
-    model: "openai/gpt-4o",
+    model: "openai/gpt-5-nano",
     temperature: 1,
     max_tokens: 4096,
     top_p: 1
