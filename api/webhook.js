@@ -1,6 +1,7 @@
-import OpenAI from "openai";
 import axios from "axios";
 import querystring from "querystring";
+import ModelClient, { isUnexpected } from "@azure-rest/ai-inference";
+import { AzureKeyCredential } from "@azure/core-auth";
 
 // 🔐 Biến môi trường
 const TOKEN = process.env.BOT_TOKEN;
@@ -9,6 +10,8 @@ const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 
 const TELEGRAM_API = `https://api.telegram.org/bot${TOKEN}`;
 const TIKTOK_API = "https://tikwm.com/api/";
+const GPT_ENDPOINT = "https://models.github.ai/inference";
+const GPT_MODEL = "openai/gpt-5";
 
 // 🎯 Trích URL TikTok từ văn bản
 function extractTikTokUrl(text) {
@@ -44,25 +47,25 @@ async function sendVideo(chatId, videoUrl, caption) {
   });
 }
 
-// 🧠 Gọi OpenAI gpt-5-nano
-async function askAI(question) {
-  const client = new OpenAI({
-    baseURL: "https://models.github.ai/inference",
-    apiKey: GITHUB_TOKEN
+// 🧠 Gọi GPT-5 qua Azure REST API
+async function askAI(prompt) {
+  const client = ModelClient(GPT_ENDPOINT, new AzureKeyCredential(GITHUB_TOKEN));
+
+  const response = await client.path("/chat/completions").post({
+    body: {
+      messages: [
+        { role: "system", content: "" },
+        { role: "user", content: prompt }
+      ],
+      model: GPT_MODEL
+    }
   });
 
-  const response = await client.chat.completions.create({
-    messages: [
-      { role: "system", content: "" },
-      { role: "user", content: question }
-    ],
-    model: "openai/gpt-5-nano",
-    temperature: 1,
-    max_tokens: 4096,
-    top_p: 1
-  });
+  if (isUnexpected(response)) {
+    throw response.body.error;
+  }
 
-  return response.choices[0].message.content;
+  return response.body.choices[0].message.content;
 }
 
 // 👋 Gửi ảnh chào mừng thành viên mới
@@ -81,10 +84,7 @@ async function handleNewMember(message) {
 
     try {
       const profileRes = await axios.get(`${TELEGRAM_API}/getUserProfilePhotos`, {
-        params: {
-          user_id: user.id,
-          limit: 1
-        }
+        params: { user_id: user.id, limit: 1 }
       });
 
       const photos = profileRes.data.result.photos;
@@ -182,7 +182,7 @@ export default async function handler(req, res) {
       }
     }
 
-    // 💬 AI GPT-4o
+    // 💬 AI GPT-5
     else if (text.startsWith("/ask")) {
       const prompt = text.replace("/ask", "").trim();
       if (!prompt) {
@@ -201,4 +201,4 @@ export default async function handler(req, res) {
     await sendMessage(chatId, "⚠️ Đã xảy ra lỗi khi xử lý yêu cầu.");
     res.status(200).send("ERR");
   }
-          }
+        }
