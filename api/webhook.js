@@ -1,7 +1,5 @@
 import axios from "axios";
 import querystring from "querystring";
-import ModelClient, { isUnexpected } from "@azure-rest/ai-inference";
-import { AzureKeyCredential } from "@azure/core-auth";
 
 // 🔐 Biến môi trường
 const TOKEN = process.env.BOT_TOKEN;
@@ -47,25 +45,26 @@ async function sendVideo(chatId, videoUrl, caption) {
   });
 }
 
-// 🧠 Gọi GPT-5 qua Azure REST API
+// 🧠 Gọi GPT-5 qua axios
 async function askAI(prompt) {
-  const client = ModelClient(GPT_ENDPOINT, new AzureKeyCredential(GITHUB_TOKEN));
-
-  const response = await client.path("/chat/completions").post({
-    body: {
+  const response = await axios.post(
+    `${GPT_ENDPOINT}/chat/completions`,
+    {
       messages: [
-        { role: "system", content: "" },
+        { role: "system", content: "You are a helpful assistant." },
         { role: "user", content: prompt }
       ],
       model: GPT_MODEL
+    },
+    {
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${GITHUB_TOKEN}`
+      }
     }
-  });
+  );
 
-  if (isUnexpected(response)) {
-    throw response.body.error;
-  }
-
-  return response.body.choices[0].message.content;
+  return response.data.choices[0].message.content;
 }
 
 // 👋 Gửi ảnh chào mừng thành viên mới
@@ -201,4 +200,4 @@ export default async function handler(req, res) {
     await sendMessage(chatId, "⚠️ Đã xảy ra lỗi khi xử lý yêu cầu.");
     res.status(200).send("ERR");
   }
-        }
+      }
