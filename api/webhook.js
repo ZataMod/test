@@ -1,3 +1,4 @@
+import OpenAI from "openai";
 import axios from "axios";
 import querystring from "querystring";
 
@@ -8,8 +9,6 @@ const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 
 const TELEGRAM_API = `https://api.telegram.org/bot${TOKEN}`;
 const TIKTOK_API = "https://tikwm.com/api/";
-const GPT_ENDPOINT = "https://models.github.ai/inference";
-const GPT_MODEL = "openai/gpt-5";
 
 // 🎯 Trích URL TikTok từ văn bản
 function extractTikTokUrl(text) {
@@ -45,26 +44,25 @@ async function sendVideo(chatId, videoUrl, caption) {
   });
 }
 
-// 🧠 Gọi GPT-5 qua axios
-async function askAI(prompt) {
-  const response = await axios.post(
-    `${GPT_ENDPOINT}/chat/completions`,
-    {
-      messages: [
-        { role: "system", content: "You are a helpful assistant." },
-        { role: "user", content: prompt }
-      ],
-      model: GPT_MODEL
-    },
-    {
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${GITHUB_TOKEN}`
-      }
-    }
-  );
-
-  return response.data.choices[0].message.content;
+// 🧠 Gọi OpenAI GPT-5
+async function askAI(question) {  
+  const client = new OpenAI({  
+    baseURL: "https://models.github.ai/inference",  
+    apiKey: GITHUB_TOKEN  
+  });  
+  
+  const response = await client.chat.completions.create({  
+    messages: [  
+      { role: "system", content: "You are a helpful assistant." },  
+      { role: "user", content: question }  
+    ],  
+    model: "openai/gpt-5", // 🔹 đổi từ gpt-4o sang gpt-5
+    temperature: 1,  
+    max_tokens: 4096,  
+    top_p: 1  
+  });  
+  
+  return response.choices[0].message.content;  
 }
 
 // 👋 Gửi ảnh chào mừng thành viên mới
