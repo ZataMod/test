@@ -1,4 +1,5 @@
-import OpenAI from "openai";
+import ModelClient, { isUnexpected } from "@azure-rest/ai-inference";
+import { AzureKeyCredential } from "@azure/core-auth";
 import axios from "axios";
 import querystring from "querystring";
 
@@ -44,25 +45,35 @@ async function sendVideo(chatId, videoUrl, caption) {
   });
 }
 
-// 🧠 Gọi OpenAI GPT-5
-async function askAI(question) {  
-  const client = new OpenAI({  
-    baseURL: "https://models.github.ai/inference",  
-    apiKey: GITHUB_TOKEN  
-  });  
-  
-  const response = await client.chat.completions.create({  
-    messages: [  
-      { role: "system", content: "You are a helpful assistant." },  
-      { role: "user", content: question }  
-    ],  
-    model: "openai/gpt-5", // 🔹 đổi từ gpt-4o sang gpt-5
-    temperature: 1,  
-    max_tokens: 4096,  
-    top_p: 1  
-  });  
-  
-  return response.choices[0].message.content;  
+// 🧠 Gọi AI DeepSeek V3 qua Azure
+async function askAI(question) {
+  const token = process.env["GITHUB_TOKEN"];
+  const endpoint = "https://models.github.ai/inference";
+  const model = "deepseek/DeepSeek-V3-0324";
+
+  const client = ModelClient(
+    endpoint,
+    new AzureKeyCredential(token),
+  );
+
+  const response = await client.path("/chat/completions").post({
+    body: {
+      messages: [
+        { role: "system", content: "You are a helpful assistant." },
+        { role: "user", content: question }
+      ],
+      temperature: 1.0,
+      top_p: 1.0,
+      max_tokens: 1000,
+      model: model
+    }
+  });
+
+  if (isUnexpected(response)) {
+    throw response.body.error;
+  }
+
+  return response.body.choices[0].message.content;
 }
 
 // 👋 Gửi ảnh chào mừng thành viên mới
@@ -179,7 +190,7 @@ export default async function handler(req, res) {
       }
     }
 
-    // 💬 AI GPT-5
+    // 💬 AI
     else if (text.startsWith("/ask")) {
       const prompt = text.replace("/ask", "").trim();
       if (!prompt) {
