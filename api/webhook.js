@@ -45,7 +45,7 @@ async function sendVideo(chatId, videoUrl, caption) {
 async function sendPhoto(chatId, photoUrl) {
   return axios.post(`${TELEGRAM_API}/sendPhoto`, {
     chat_id: chatId,
-    video: photoUrl
+    photo: photoUrl
   });
 }
 
@@ -240,7 +240,7 @@ export default async function handler(req, res) {
       }
 
       const images = await getBingImages(key);
-      for (let i = 0; i < images.length; i+ +) {
+      for (let i = 0; i < images.length; i++) {
         await sendPhoto(chatId, images[i]);
       }
       return res.status(200).send("OK");
