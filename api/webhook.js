@@ -41,6 +41,14 @@ async function sendVideo(chatId, videoUrl, caption) {
   });
 }
 
+// Send Photo
+async function sendPhoto(chatId, photoUrl) {
+  return axios.post(`${TELEGRAM_API}/sendPhoto`, {
+    chat_id: chatId,
+    video: photoUrl
+  });
+}
+
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
@@ -116,6 +124,32 @@ async function handleNewMember(message) {
       caption: `🎉 Chào mừng ${name} đến với nhóm!`
     });
   }
+}
+
+async function getBingImages(keyword, limit = 5) {
+    const url = `https://www.bing.com/images/search?q=${encodeURIComponent(keyword)}&form=HDRSC2`;
+    const headers = { "User-Agent": "Mozilla/5.0" };
+
+    try {
+        const { data: html } = await axios.get(url, { headers });
+
+        // Regex tìm link ảnh gốc
+        const matches = [...html.matchAll(/murl&quot;:&quot;(.*?)&quot;/g)];
+
+        const links = [];
+        for (const match of matches) {
+            const link = match[1];
+            if (!links.includes(link)) {
+                links.push(link);
+            }
+            if (links.length >= limit) break;
+        }
+
+        return links;
+    } catch (err) {
+        console.error("Lỗi khi lấy ảnh:", err.message);
+        return [];
+    }
 }
 
 // 🚀 Hàm chính xử lý webhook
@@ -196,6 +230,19 @@ export default async function handler(req, res) {
 
       const reply = await askAI(prompt);
       await sendMessage(chatId, `🤖 *Trả lời:*\n${reply}`);
+    }
+
+    else if (text.startsWith("/img")) {
+      const key = text.replace("/img", "").trim();
+      if (!key) {
+        await sendMessage(chatId, "🧠 *Vui lòng nhập nội dung sau lệnh* `/img <key>`");
+        return res.status(200).send("OK");
+      }
+
+      const images = await getBingImages(key);
+      for (let i = 0; i < images.length; i+ +) {
+        await sendPhoto(chatId, images[i]);
+      return res.status(200).send("OK");
     }
 
     res.status(200).send("OK");
