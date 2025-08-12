@@ -242,6 +242,7 @@ export default async function handler(req, res) {
       const images = await getBingImages(key);
       for (let i = 0; i < images.length; i+ +) {
         await sendPhoto(chatId, images[i]);
+      }
       return res.status(200).send("OK");
     }
 
