@@ -314,16 +314,15 @@ export default async function handler(req, res) {
       }
       return res.status(200).send("OK");
     }
-
-    res.status(200).send("OK");
     
-  else if (text.startsWith("/wt")) {
+    else if (text.startsWith("/wt")) {
       const text = text.replace("/wt", "").trim();
       let [tinh, huyen] = text.split(",").map((s) => s.trim());
       await sendMessage(chatId, await getWeather(tinh, huyen));
       return res.status(200).send("OK");
-
-  } catch (err) {
+    } 
+    
+  catch (err) {
     console.error("❌ Error:", err.message);
     await sendMessage(chatId, "⚠️ Đã xảy ra lỗi khi xử lý yêu cầu.");
     res.status(200).send("ERR");
