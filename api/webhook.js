@@ -316,6 +316,9 @@ export default async function handler(req, res) {
     
     else if (text.startsWith("/wt")) {
       const text = text.replace("/wt", "").trim();
+      if (!text) {
+        await sendMessage(chatId, "🌩️ *Vui lòng nhập nội dung sau lệnh* `/wt <Tỉnh/TP>, <Quận/Huyện>`");
+      }
       let [tinh, huyen] = text.split(",").map((s) => s.trim());
       await sendMessage(chatId, await getWeather(tinh, huyen));
       return res.status(200).send("OK");
