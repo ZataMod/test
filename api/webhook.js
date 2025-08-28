@@ -92,24 +92,16 @@ function bo_dau(text) {
     .join("-");
 }
 
-// Hàm GET request thuần Node với header
+// Hàm GET request thuần Node
 function fetch(url) {
   return new Promise((resolve, reject) => {
-    https.get(
-      url,
-      {
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36",
-          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        },
-      },
-      (res) => {
+    https
+      .get(url, (res) => {
         let data = "";
         res.on("data", (chunk) => (data += chunk));
         res.on("end", () => resolve(data));
-      }
-    ).on("error", (err) => reject(err));
+      })
+      .on("error", (err) => reject(err));
   });
 }
 
@@ -117,7 +109,7 @@ function fetch(url) {
 function get(pattern, text) {
   let regex = new RegExp(pattern + '">(.*?)<', "s");
   let match = text.match(regex);
-  return match ? match[1].trim() : "";
+  return match ? match[2].trim() : "";
 }
 
 // Hàm chính: trả về string
