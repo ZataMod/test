@@ -1,5 +1,4 @@
 import axios from "axios";
-import https from "https";
 import querystring from "querystring";
 
 // 🔐 Biến môi trường
@@ -92,19 +91,6 @@ function bo_dau(text) {
     .join("-");
 }
 
-// Hàm GET request thuần Node
-function fetch(url) {
-  return new Promise((resolve, reject) => {
-    https
-      .get(url, (res) => {
-        let data = "";
-        res.on("data", (chunk) => (data += chunk));
-        res.on("end", () => resolve(data));
-      })
-      .on("error", (err) => reject(err));
-  });
-}
-
 // Hàm lấy value theo regex
 function get(pattern, text) {
   let regex = new RegExp(pattern + '">(.*?)<', "s");
@@ -117,7 +103,13 @@ async function getWeather(tinh, huyen) {
   tinh = bo_dau(tinh).toLowerCase();
   huyen = bo_dau(huyen).toLowerCase();
 
-  const html = await fetch(`https://thoitiet.edu.vn/${tinh}/${huyen}`);
+  let html;
+  try {
+    const res = await axios.get(`https://thoitiet.edu.vn/${tinh}/${huyen}`);
+    html = res.data;
+  } catch (err) {
+    throw new Error("Không thể lấy dữ liệu thời tiết: " + err.message);
+  }
 
   const location = [
     'breadcrumb-item active" aria-current="(.*?)',
