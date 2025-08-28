@@ -316,7 +316,7 @@ export default async function handler(req, res) {
     
     else if (text.startsWith("/wt")) {
       const key = text.replace("/wt", "").trim();
-      if (!key) {
+      if (!key || !key.includes(",")) {
         await sendMessage(chatId, "🌩️ *Vui lòng nhập nội dung sau lệnh* `/wt <Tỉnh/TP>, <Quận/Huyện>`");
         return res.status(200).send("OK");
       }
