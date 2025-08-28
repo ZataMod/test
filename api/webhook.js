@@ -80,6 +80,66 @@ async function askAI(prompt) {
   }
 }
 
+// Bỏ dấu tiếng Việt
+function bo_dau(text) {
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/Đ/g, "D")
+    .replace(/đ/g, "d")
+    .split(/\s+/)
+    .join("-");
+}
+
+// Hàm lấy value theo regex
+function get(pattern, text) {
+  let regex = new RegExp(pattern + '">(.*?)<', "s");
+  let match = text.match(regex);
+  return match ? match[2].trim() : "";
+}
+
+// Hàm chính: trả về string
+async function getWeather(tinh, huyen) {
+  tinh = bo_dau(tinh).toLowerCase();
+  huyen = bo_dau(huyen).toLowerCase();
+
+  let html;
+  try {
+    const res = await axios.get(`https://thoitiet.edu.vn/${tinh}/${huyen}`);
+    html = res.data;
+  } catch (err) {
+    throw new Error("Không thể lấy dữ liệu thời tiết: " + err.message);
+  }
+
+  const location = [
+    'breadcrumb-item active" aria-current="(.*?)',
+    'breadcrumb-item"><a href="(.*?)',
+  ];
+
+  const data_map = {
+    "🌡️  Nhiệt Độ": "<span(.*?)current-temperature",
+    "🌥️  Hiện Tượng": "<p(.*?)overview-caption-item overview-caption-item-detail",
+    "🔻 Thấp/Cao": "Thấp/Cao(.*?)text-white op-8 fw-bold",
+    "💧 Độ Ẩm": "Độ ẩm(.*?)text-white op-8 fw-bold",
+    "👁️  Tầm Nhìn": "Tầm nhìn(.*?)text-white op-8 fw-bold",
+    "🍃 Gió": "Gió(.*?)text-white op-8 fw-bold",
+    "❄️ Điểm Ngưng": "Điểm ngưng(.*?)text-white op-8 fw-bold",
+    "🔆 UV": "UV(.*?)text-white op-8 fw-bold",
+  };
+
+  let result = `\nDự báo Thời tiết ${get(location[0], html)} - ${get(
+    location[1],
+    html
+  )}\n\n`;
+
+  for (const [key, pattern] of Object.entries(data_map)) {
+    const value = get(pattern, html);
+    result += `${key}: ${value || "N/A"}\n`;
+  }
+
+  return result;
+}
+
 // 👋 Gửi ảnh chào mừng thành viên mới
 async function handleNewMember(message) {
   const newMembers = message.new_chat_members;
@@ -245,12 +305,21 @@ export default async function handler(req, res) {
       }
       return res.status(200).send("OK");
     }
-
-    res.status(200).send("OK");
-
+    
+    else if (text.startsWith("/wt")) {
+      const key = text.replace("/wt", "").trim();
+      if (!key || !key.includes(",")) {
+        await sendMessage(chatId, "🌩️ *Vui lòng nhập nội dung sau lệnh* `/wt <Tỉnh/TP>, <Quận/Huyện>`");
+        return res.status(200).send("OK");
+      }
+      let [tinh, huyen] = key.split(",").map((s) => s.trim());
+      await sendMessage(chatId, await getWeather(tinh, huyen));
+      return res.status(200).send("OK");
+    } 
+    
   } catch (err) {
     console.error("❌ Error:", err.message);
     await sendMessage(chatId, "⚠️ Đã xảy ra lỗi khi xử lý yêu cầu.");
     res.status(200).send("ERR");
   }
-      }
+}
