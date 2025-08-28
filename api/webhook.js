@@ -127,7 +127,7 @@ async function getWeather(tinh, huyen) {
     "🔆 UV": "UV(.*?)text-white op-8 fw-bold",
   };
 
-  let result = `\nDự báo Thời tiết ${get(location[0], html)} - ${get(
+  let result = `\nDự báo ${get(location[0], html)} - ${get(
     location[1],
     html
   )}\n\n`;
