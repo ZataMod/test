@@ -1,5 +1,6 @@
 import axios from "axios";
 import querystring from "querystring";
+import https from "https";
 
 // 🔐 Biến môi trường
 const TOKEN = process.env.BOT_TOKEN;
@@ -79,8 +80,6 @@ async function askAI(prompt) {
     return "⚠️ Lỗi khi gọi Gemini API.";
   }
 }
-
-const https = require("https");
 
 // Bỏ dấu tiếng Việt
 function bo_dau(text) {
