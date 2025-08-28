@@ -322,9 +322,9 @@ export default async function handler(req, res) {
       return res.status(200).send("OK");
     } 
     
-  catch (err) {
+  } catch (err) {
     console.error("❌ Error:", err.message);
     await sendMessage(chatId, "⚠️ Đã xảy ra lỗi khi xử lý yêu cầu.");
     res.status(200).send("ERR");
   }
-      }
+}
