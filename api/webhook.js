@@ -1,4 +1,5 @@
 import axios from "axios";
+import https from "https";
 import querystring from "querystring";
 
 // 🔐 Biến môi trường
@@ -91,20 +92,25 @@ function bo_dau(text) {
     .join("-");
 }
 
-// Hàm GET request dùng axios với header
-async function fetch(url) {
-  try {
-    const res = await axios.get(url, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36",
-        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+// Hàm GET request thuần Node với header
+function fetch(url) {
+  return new Promise((resolve, reject) => {
+    https.get(
+      url,
+      {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36",
+          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        },
       },
-    });
-    return res.data;
-  } catch (err) {
-    throw err;
-  }
+      (res) => {
+        let data = "";
+        res.on("data", (chunk) => (data += chunk));
+        res.on("end", () => resolve(data));
+      }
+    ).on("error", (err) => reject(err));
+  });
 }
 
 // Hàm lấy value theo regex
