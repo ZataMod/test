@@ -91,10 +91,16 @@ function bo_dau(text) {
     .join("-");
 }
 
-// Hàm GET request dùng axios
+// Hàm GET request dùng axios với header
 async function fetch(url) {
   try {
-    const res = await axios.get(url);
+    const res = await axios.get(url, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36",
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      },
+    });
     return res.data;
   } catch (err) {
     throw err;
